@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Joystick Roadview — 카카오 로드뷰 가상 여행</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14110d;
+    --brass:#c9974a;
+    --brass-light:#e8c98a;
+    --cream:#ede4cf;
+    --teal:#2f4a44;
+    --danger:#8b4a3a;
+    --kakao:#fee500;
+    --panel:#1d1812f0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--bg);
+    font-family:'IBM Plex Sans',sans-serif;color:var(--cream);}
+  #pano{position:fixed;inset:0;width:100%;height:100%;}
+
+  /* ---------- 시작 화면 (App Key 입력) ---------- */
+  #startScreen{
+    position:fixed;inset:0;z-index:50;background:radial-gradient(ellipse at center,#221c15 0%,#0c0a07 100%);
+    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:24px;text-align:center;
+    overflow-y:auto;
+  }
+  #startScreen h1{
+    font-family:'Special Elite',cursive;color:var(--brass-light);font-size:clamp(22px,4vw,32px);
+    letter-spacing:1px;margin:0;display:flex;align-items:center;gap:10px;
+  }
+  #startScreen h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--kakao);display:inline-block;}
+  #startScreen p{color:#c9beac;max-width:480px;line-height:1.6;font-size:13px;margin:0;}
+  #startScreen a{color:var(--brass-light);}
+  #apiKeyInput{
+    width:min(420px,80vw);padding:12px 14px;border-radius:4px;border:1px solid var(--brass);
+    background:#0f0d0a;color:var(--cream);font-family:'IBM Plex Mono',monospace;font-size:14px;
+  }
+  #apiKeyInput:focus{outline:2px solid var(--brass-light);}
+  .lat-lng-row{display:flex;gap:8px;width:min(420px,80vw);}
+  .lat-lng-row input{flex:1;padding:10px;border-radius:4px;border:1px solid #4a4436;background:#0f0d0a;
+    color:var(--cream);font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  #startBtn{
+    margin-top:4px;padding:12px 32px;border-radius:4px;border:1px solid var(--brass);
+    background:var(--brass);color:#1a1510;font-weight:600;font-size:15px;cursor:pointer;
+    letter-spacing:.5px;transition:transform .15s ease, background .15s ease;
+  }
+  #startBtn:hover{background:var(--brass-light);transform:translateY(-1px);}
+  #startBtn:disabled{opacity:.5;cursor:not-allowed;}
+  #startError{color:#e08a7a;font-size:12px;min-height:16px;line-height:1.5;}
+  .checklist{width:min(420px,80vw);text-align:left;background:#0f0d0a;border:1px solid #3a3324;
+    border-radius:6px;padding:12px 14px;font-size:12px;color:#a89b7d;line-height:1.7;}
+  .checklist b{color:var(--brass-light);}
+
+  /* ---------- HUD ---------- */
+  .hud{position:fixed;z-index:20;pointer-events:none;}
+  #topLeftHud{
+    top:16px;left:16px;background:var(--panel);border:1px solid #4a4436;border-radius:6px;
+    padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.7;
+    color:var(--brass-light);backdrop-filter:blur(2px);
+  }
+  #topLeftHud .label{color:#8f8672;margin-right:6px;}
+
+  #compassWrap{
+    top:16px;right:16px;width:74px;height:74px;border-radius:50%;
+    background:var(--panel);border:1px solid var(--brass);
+    display:flex;align-items:center;justify-content:center;
+  }
+  #compassRing{position:relative;width:100%;height:100%;transition:transform .1s linear;}
+  #compassRing span{
+    position:absolute;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--brass-light);
+    left:50%;top:50%;transform-origin:center;font-weight:600;
+  }
+  #compassPointer{
+    position:absolute;top:2px;left:50%;transform:translateX(-50%);
+    width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;
+    border-bottom:9px solid var(--danger);
+  }
+
+  #instructions{
+    bottom:16px;left:50%;transform:translateX(-50%);
+    background:var(--panel);border:1px solid #4a4436;border-radius:6px;padding:8px 16px;
+    font-size:12px;color:#c9beac;white-space:nowrap;
+  }
+
+  #blockedToast{
+    top:100px;left:50%;transform:translateX(-50%);
+    background:#3a201aee;border:1px solid var(--danger);border-radius:6px;padding:6px 14px;
+    font-size:12px;color:#f0d3c9;opacity:0;transition:opacity .3s ease;
+  }
+
+  /* ---------- 가상 조이스틱 ---------- */
+  #joystickZone{
+    position:fixed;left:28px;bottom:28px;width:120px;height:120px;z-index:30;
+    touch-action:none;
+  }
+  #joyBase{
+    width:100%;height:100%;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#2a2015,#161109 70%);
+    border:2px solid var(--brass);position:relative;
+    box-shadow:0 0 0 4px #0000, inset 0 0 14px #000a;
+  }
+  #joyBase::before{
+    content:"";position:absolute;inset:10px;border:1px dashed #6b5c3d80;border-radius:50%;
+  }
+  #joyStick{
+    position:absolute;width:46px;height:46px;border-radius:50%;left:37px;top:37px;
+    background:radial-gradient(circle at 35% 30%,var(--brass-light),var(--brass) 70%);
+    box-shadow:0 3px 6px #000a;cursor:grab;
+  }
+
+  #gamepadBadge{
+    position:fixed;top:100px;right:16px;z-index:20;background:var(--panel);
+    border:1px solid var(--teal);border-radius:4px;padding:6px 10px;font-size:11px;
+    color:#8fd6c2;display:none;
+  }
+
+  #sourceBadge{
+    position:fixed;bottom:16px;right:16px;z-index:20;background:var(--panel);
+    border:1px solid var(--kakao);border-radius:4px;padding:5px 10px;font-size:11px;
+    color:var(--kakao);display:flex;align-items:center;gap:6px;
+  }
+  #sourceBadge .dot{width:7px;height:7px;border-radius:50%;background:var(--kakao);}
+
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+
+  <!-- 시작 화면: JavaScript 키 + 출발 위치 입력 -->
+  <div id="startScreen">
+    <h1><span class="dot"></span>조이스틱 로드뷰 여행</h1>
+    <p>
+      카카오 개발자센터에서 발급받은 <b>JavaScript 키</b>를 입력하세요. 키는 서버로 전송되지 않고
+      이 브라우저 세션에서만 사용됩니다.
+    </p>
+    <div class="checklist">
+      <b>발급 전 확인:</b><br>
+      1. developers.kakao.com → 애플리케이션 추가 → JavaScript 키 복사<br>
+      2. 플랫폼 → Web 플랫폼에 현재 접속 도메인 등록 (예: http://localhost:포트)<br>
+      3. 앱 관리 페이지에서 "카카오맵 API" 활성화<br>
+      → 도메인 미등록 시 401 에러가 발생합니다.
+    </div>
+    <input id="apiKeyInput" type="text" placeholder="Kakao JavaScript 키 입력" autocomplete="off">
+    <div class="lat-lng-row">
+      <input id="latInput" type="text" placeholder="출발 위도" value="37.5665">
+      <input id="lngInput" type="text" placeholder="출발 경도" value="126.9780">
+    </div>
+    <button id="startBtn">여행 시작</button>
+    <div id="startError"></div>
+  </div>
+
+  <!-- 로드뷰 컨테이너 -->
+  <div id="pano"></div>
+
+  <!-- HUD -->
+  <div class="hud" id="topLeftHud">
+    <div><span class="label">HEADING</span><span id="hudHeading">0°</span></div>
+    <div><span class="label">LAT</span><span id="hudLat">-</span></div>
+    <div><span class="label">LNG</span><span id="hudLng">-</span></div>
+  </div>
+
+  <div class="hud" id="compassWrap">
+    <div id="compassPointer"></div>
+    <div id="compassRing">
+      <span style="transform:translate(-50%,-32px)">N</span>
+      <span style="transform:translate(18px,-50%)">E</span>
+      <span style="transform:translate(-50%,20px)">S</span>
+      <span style="transform:translate(-30px,-50%)">W</span>
+    </div>
+  </div>
+
+  <div class="hud" id="instructions">
+    조이스틱/WASD: 위=전진 · 아래=후진 · 좌우=회전 · 화면 드래그: 시점 둘러보기 · 실제 게임패드 연결 가능
+  </div>
+
+  <div class="hud" id="blockedToast">이 방향으로는 로드뷰가 없습니다</div>
+
+  <div id="gamepadBadge">🎮 게임패드 연결됨</div>
+  <div id="sourceBadge"><span class="dot"></span>Kakao Roadview</div>
+
+  <!-- 가상 조이스틱 -->
+  <div id="joystickZone">
+    <div id="joyBase">
+      <div id="joyStick"></div>
+    </div>
+  </div>
+
+<script>
+  // ================= 설정값 =================
+  const MOVE_INTERVAL_MS = 600;      // 조이스틱을 앞/뒤로 밀었을 때 한 칸 이동하는 주기
+  const MOVE_DISTANCE_M = 8;         // 한 번에 전진/후진할 때 앞으로 투영할 거리(m)
+  const SEARCH_RADIUS_M = 20;        // 투영된 지점 주변에서 로드뷰를 찾을 반경(m) — 도로 이탈 방지
+  const TURN_RATE_DEG_PER_SEC = 110; // 조이스틱 좌우 최대 회전 속도
+
+  let roadview = null;
+  let rvClient = null;
+  let moving = false;                // 비동기 이동 요청 중복 방지 플래그
+  let inputVec = { x: 0, y: 0 };
+  let joyVec = { x: 0, y: 0 };
+  let keyVec = { x: 0, y: 0 };
+  let padVec = { x: 0, y: 0 };
+  let lastMoveTime = 0;
+  let lastFrameTime = 0;
+
+  // ---------- 1. JS 키 입력 후 Kakao Maps 스크립트 동적 로드 ----------
+  // file:// 로 직접 열면 카카오 도메인 검증(Referer 기반)이 항상 실패하므로 미리 경고
+  if (location.protocol === 'file:') {
+    const warn = document.createElement('div');
+    warn.className = 'checklist';
+    warn.style.borderColor = 'var(--danger)';
+    warn.innerHTML = '<b style="color:#e08a7a">⚠ 현재 file:// 로 열려 있습니다.</b><br>카카오 SDK는 이 상태에서 도메인 인증이 되지 않아 100% 실패합니다.<br>터미널에서 <code>python -m http.server</code> 실행 후 <code>http://localhost:8000</code>으로 다시 열어주세요.';
+    document.getElementById('startScreen').insertBefore(warn, document.getElementById('apiKeyInput'));
+  }
+
+  document.getElementById('startBtn').addEventListener('click', () => {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    const lat = parseFloat(document.getElementById('latInput').value);
+    const lng = parseFloat(document.getElementById('lngInput').value);
+    const errEl = document.getElementById('startError');
+
+    if (!key) { errEl.textContent = 'JavaScript 키를 입력해주세요.'; return; }
+    if (isNaN(lat) || isNaN(lng)) { errEl.textContent = '위도/경도를 숫자로 입력해주세요.'; return; }
+
+    window.__START_LAT = lat;
+    window.__START_LNG = lng;
+
+    document.getElementById('startBtn').disabled = true;
+    errEl.textContent = 'SDK 불러오는 중...';
+
+    // 스크립트 자체의 문법/실행 에러까지 화면에 노출 (모바일 등 devtools 없는 환경 디버깅용)
+    window.onerror = (msg) => {
+      errEl.textContent = '스크립트 실행 에러: ' + msg;
+      document.getElementById('startBtn').disabled = false;
+    };
+
+    const script = document.createElement('script');
+    // 프로토콜 명시 (file://에서 // 로 시작하면 깨짐)
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false`;
+    script.onload = () => {
+      if (!window.kakao || !window.kakao.maps) {
+        errEl.textContent = 'SDK는 로드됐지만 kakao.maps 객체가 없습니다. 키 또는 카카오맵 API 활성화 상태를 확인하세요.';
+        document.getElementById('startBtn').disabled = false;
+        return;
+      }
+      kakao.maps.load(initApp);
+    };
+    script.onerror = () => {
+      errEl.textContent = '스크립트 로드 자체가 실패했습니다. 네트워크 또는 키 오타를 확인하세요.';
+      document.getElementById('startBtn').disabled = false;
+    };
+    document.head.appendChild(script);
+  });
+
+  // ---------- 2. 로드뷰 초기화 ----------
+  window.initApp = function () {
+    const errEl = document.getElementById('startError');
+    try {
+      roadview = new kakao.maps.Roadview(document.getElementById('pano'));
+      rvClient = new kakao.maps.RoadviewClient();
+
+      const startPos = new kakao.maps.LatLng(window.__START_LAT, window.__START_LNG);
+
+      // 도메인 미등록 등으로 401이 나면 여기서 SDK가 조용히 실패할 수 있어 타임아웃으로도 안내
+      const timeoutId = setTimeout(() => {
+        errEl.textContent = '응답이 없습니다. 플랫폼(Web) 도메인 등록 여부를 확인해주세요.';
+        document.getElementById('startBtn').disabled = false;
+      }, 8000);
+
+      rvClient.getNearestPanoId(startPos, 100, function (panoId) {
+        clearTimeout(timeoutId);
+        if (!panoId) {
+          errEl.textContent = '해당 좌표 근처(100m)에 로드뷰가 없습니다. 도로 위 좌표로 다시 시도해주세요.';
+          document.getElementById('startBtn').disabled = false;
+          return;
+        }
+        roadview.setPanoId(panoId, startPos);
+      });
+
+      kakao.maps.event.addListener(roadview, 'init', function () {
+        document.getElementById('startScreen').classList.add('hidden');
+        requestAnimationFrame(loop);
+      });
+    } catch (e) {
+      errEl.textContent = '초기화 실패: ' + e.message;
+      document.getElementById('startBtn').disabled = false;
+    }
+  };
+
+  // ---------- 3. 가상 조이스틱 (포인터 이벤트로 마우스/터치 통합 처리) ----------
+  const zone = document.getElementById('joystickZone');
+  const stick = document.getElementById('joyStick');
+  const baseRadius = 60, stickRadius = 23;
+  let dragging = false;
+
+  function setStickPos(dx, dy) {
+    stick.style.left = (baseRadius - stickRadius + dx) + 'px';
+    stick.style.top  = (baseRadius - stickRadius + dy) + 'px';
+  }
+
+  zone.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    stick.setPointerCapture(e.pointerId);
+  });
+  zone.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const rect = zone.getBoundingClientRect();
+    let dx = e.clientX - (rect.left + baseRadius);
+    let dy = e.clientY - (rect.top + baseRadius);
+    const dist = Math.min(Math.hypot(dx, dy), baseRadius - stickRadius);
+    const angle = Math.atan2(dy, dx);
+    dx = Math.cos(angle) * dist;
+    dy = Math.sin(angle) * dist;
+    setStickPos(dx, dy);
+    joyVec.x = dx / (baseRadius - stickRadius);
+    joyVec.y = dy / (baseRadius - stickRadius);
+  });
+  function releaseStick() {
+    dragging = false;
+    setStickPos(0, 0);
+    joyVec = { x: 0, y: 0 };
+  }
+  zone.addEventListener('pointerup', releaseStick);
+  zone.addEventListener('pointercancel', releaseStick);
+
+  // ---------- 4. 키보드 (WASD / 방향키) ----------
+  const keysDown = new Set();
+  window.addEventListener('keydown', (e) => { keysDown.add(e.key.toLowerCase()); updateKeyVec(); });
+  window.addEventListener('keyup',   (e) => { keysDown.delete(e.key.toLowerCase()); updateKeyVec(); });
+  function updateKeyVec() {
+    keyVec.x = (keysDown.has('d') || keysDown.has('arrowright') ? 1 : 0) - (keysDown.has('a') || keysDown.has('arrowleft') ? 1 : 0);
+    keyVec.y = (keysDown.has('w') || keysDown.has('arrowup')) ? -1 : (keysDown.has('s') || keysDown.has('arrowdown')) ? 1 : 0;
+  }
+
+  // ---------- 5. 실제 게임패드 / 조이스틱 (Gamepad API) ----------
+  function pollGamepad() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const pad = pads && pads[0];
+    const badge = document.getElementById('gamepadBadge');
+    if (pad) {
+      badge.style.display = 'block';
+      const dead = 0.15;
+      padVec.x = Math.abs(pad.axes[0]) > dead ? pad.axes[0] : 0;
+      padVec.y = Math.abs(pad.axes[1]) > dead ? pad.axes[1] : 0;
+    } else {
+      badge.style.display = 'none';
+      padVec = { x: 0, y: 0 };
+    }
+  }
+
+  // ---------- 6. 이동/회전 핵심 로직 (카카오 로드뷰 전용) ----------
+  // 카카오 로드뷰는 구글처럼 인접 파노라마 링크 그래프를 제공하지 않으므로,
+  // 현재 시점 방향(pan)으로 일정 거리 앞의 좌표를 계산한 뒤
+  // 그 주변에서 가장 가까운 로드뷰 파노ID를 찾아 이동하는 방식으로 구현한다.
+  function projectForward(position, panDeg, distanceM) {
+    const rad = (panDeg * Math.PI) / 180;
+    const lat = position.getLat();
+    const lng = position.getLng();
+    const dLat = (distanceM * Math.cos(rad)) / 111320;
+    const dLng = (distanceM * Math.sin(rad)) / (111320 * Math.cos(lat * Math.PI / 180));
+    return new kakao.maps.LatLng(lat + dLat, lng + dLng);
+  }
+
+  function stepMove(direction) {
+    // direction: 1 = 전진, -1 = 후진
+    if (!roadview || moving) return;
+    const vp = roadview.getViewpoint();
+    const pos = roadview.getPosition();
+    const targetHeading = direction === 1 ? vp.pan : (vp.pan + 180) % 360;
+    const target = projectForward(pos, targetHeading, MOVE_DISTANCE_M);
+
+    moving = true;
+    rvClient.getNearestPanoId(target, SEARCH_RADIUS_M, function (panoId) {
+      moving = false;
+      if (panoId) {
+        roadview.setPanoId(panoId, target);
+      } else {
+        flashBlockedToast(); // 그 방향엔 로드뷰가 없음 (도로 끝, 골목 등)
+      }
+    });
+  }
+
+  function stepTurn(deltaDeg) {
+    if (!roadview) return;
+    const vp = roadview.getViewpoint();
+    roadview.setViewpoint({ pan: (vp.pan + deltaDeg + 360) % 360, tilt: vp.tilt, zoom: vp.zoom });
+  }
+
+  let toastTimer = null;
+  function flashBlockedToast() {
+    const el = document.getElementById('blockedToast');
+    el.style.opacity = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 900);
+  }
+
+  // ---------- 7. 메인 루프 ----------
+  function loop(ts) {
+    requestAnimationFrame(loop);
+    if (!roadview) return;
+    const dt = lastFrameTime ? (ts - lastFrameTime) / 1000 : 0;
+    lastFrameTime = ts;
+
+    pollGamepad();
+
+    inputVec.x = joyVec.x || keyVec.x || padVec.x;
+    inputVec.y = joyVec.y || keyVec.y || padVec.y;
+
+    if (Math.abs(inputVec.x) > 0.05) {
+      stepTurn(inputVec.x * TURN_RATE_DEG_PER_SEC * dt);
+    }
+
+    if (Math.abs(inputVec.y) > 0.5 && ts - lastMoveTime > MOVE_INTERVAL_MS) {
+      stepMove(inputVec.y < 0 ? 1 : -1);
+      lastMoveTime = ts;
+    }
+
+    updateHud();
+  }
+
+  function updateHud() {
+    const vp = roadview.getViewpoint();
+    const pos = roadview.getPosition();
+    const heading = Math.round(((vp.pan % 360) + 360) % 360);
+    document.getElementById('hudHeading').textContent = heading + '°';
+    if (pos) {
+      document.getElementById('hudLat').textContent = pos.getLat().toFixed(5);
+      document.getElementById('hudLng').textContent = pos.getLng().toFixed(5);
+    }
+    document.getElementById('compassRing').style.transform = `rotate(${-heading}deg)`;
+  }
+</script>
+</body>
+</html>
