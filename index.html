@@ -80,10 +80,35 @@
     border-bottom:9px solid var(--danger);
   }
 
+  /* 조작법: 하단 고정 바 대신 중앙 카드 + 상단 ? 토글 (하단은 카카오 저작권 표기용으로 비워둠) */
+  #helpBtn{
+    position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:25;
+    width:34px;height:34px;border-radius:50%;padding:0;
+    background:var(--panel);border:1px solid #4a4436;color:var(--brass-light);
+    font-family:'IBM Plex Mono',monospace;font-size:15px;line-height:1;cursor:pointer;
+  }
+  #helpBtn:active{background:#2a2015;}
+
   #instructions{
-    bottom:16px;left:50%;transform:translateX(-50%);
-    background:var(--panel);border:1px solid #4a4436;border-radius:6px;padding:8px 16px;
-    font-size:12px;color:#c9beac;white-space:nowrap;
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:40;
+    width:min(330px,86vw);
+    background:#1d1812f5;border:1px solid var(--brass);border-radius:8px;
+    padding:16px 18px;box-shadow:0 8px 24px #000a;
+    font-size:13px;color:#c9beac;cursor:pointer;
+    opacity:1;transition:opacity .3s ease;
+  }
+  #instructions h2{
+    margin:0 0 12px;font-family:'Special Elite',cursive;font-size:15px;
+    color:var(--brass-light);letter-spacing:.5px;
+  }
+  #instructions dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:baseline;}
+  #instructions dt{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--brass-light);white-space:nowrap;
+  }
+  #instructions dd{margin:0;font-size:12px;}
+  #instructions .close-hint{
+    margin-top:14px;padding-top:10px;border-top:1px solid #3a3324;
+    font-size:11px;color:#8f8672;text-align:center;
   }
 
   #blockedToast{
@@ -93,8 +118,10 @@
   }
 
   /* ---------- 가상 조이스틱 ---------- */
+  /* 하단 34px는 카카오 저작권 표기 영역이므로 그만큼 띄운다 */
   #joystickZone{
-    position:fixed;left:28px;bottom:28px;width:120px;height:120px;z-index:30;
+    position:fixed;left:20px;bottom:calc(34px + env(safe-area-inset-bottom,0px));
+    width:120px;height:120px;z-index:30;
     touch-action:none;
   }
   #joyBase{
@@ -118,8 +145,9 @@
     color:#8fd6c2;display:none;
   }
 
+  /* 우하단은 카카오 기본 확대/나침반 컨트롤 자리라 좌상단 HUD 아래로 옮김 */
   #sourceBadge{
-    position:fixed;bottom:16px;right:16px;z-index:20;background:var(--panel);
+    position:fixed;top:106px;left:16px;z-index:20;background:var(--panel);
     border:1px solid var(--kakao);border-radius:4px;padding:5px 10px;font-size:11px;
     color:var(--kakao);display:flex;align-items:center;gap:6px;
   }
@@ -173,8 +201,17 @@
     </div>
   </div>
 
-  <div class="hud" id="instructions">
-    조이스틱/WASD: 위=전진 · 아래=후진 · 좌우=회전 · 화면 드래그: 시점 둘러보기 · 실제 게임패드 연결 가능
+  <button id="helpBtn" class="hidden" aria-label="조작법 보기">?</button>
+  <div id="instructions" class="hidden">
+    <h2>조작법</h2>
+    <dl>
+      <dt>조이스틱 ↑ · W · ↑</dt><dd>전진</dd>
+      <dt>조이스틱 ↓ · S · ↓</dt><dd>후진</dd>
+      <dt>조이스틱 ↔ · A D</dt><dd>좌우 회전</dd>
+      <dt>화면 드래그</dt><dd>시점 둘러보기</dd>
+      <dt>게임패드</dt><dd>연결 시 자동 인식</dd>
+    </dl>
+    <div class="close-hint">탭하면 닫힙니다 · 상단 <b>?</b> 로 다시 열기</div>
   </div>
 
   <div class="hud" id="blockedToast">이 방향으로는 로드뷰가 없습니다</div>
@@ -282,6 +319,8 @@
 
       kakao.maps.event.addListener(roadview, 'init', function () {
         document.getElementById('startScreen').classList.add('hidden');
+        helpBtn.classList.remove('hidden');
+        showHelp(7000);
         requestAnimationFrame(loop);
       });
     } catch (e) {
@@ -388,6 +427,27 @@
     const vp = roadview.getViewpoint();
     roadview.setViewpoint({ pan: (vp.pan + deltaDeg + 360) % 360, tilt: vp.tilt, zoom: vp.zoom });
   }
+
+  // ---------- 6-1. 조작법 카드 토글 (표시 전용, 이동 로직과 무관) ----------
+  const helpCard = document.getElementById('instructions');
+  const helpBtn = document.getElementById('helpBtn');
+  let helpTimer = null;
+
+  function showHelp(autoHideMs) {
+    clearTimeout(helpTimer);
+    helpCard.classList.remove('hidden');
+    requestAnimationFrame(() => { helpCard.style.opacity = '1'; });
+    if (autoHideMs) helpTimer = setTimeout(hideHelp, autoHideMs);
+  }
+  function hideHelp() {
+    clearTimeout(helpTimer);
+    helpCard.style.opacity = '0';
+    helpTimer = setTimeout(() => helpCard.classList.add('hidden'), 300);
+  }
+  helpCard.addEventListener('click', hideHelp);
+  helpBtn.addEventListener('click', () => {
+    if (helpCard.classList.contains('hidden')) showHelp(0); else hideHelp();
+  });
 
   let toastTimer = null;
   function flashBlockedToast() {
