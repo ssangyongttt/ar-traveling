@@ -15,20 +15,24 @@
 
 - [ ] **a) JavaScript 키 발급**
   [developers.kakao.com](https://developers.kakao.com) 로그인 → **내 애플리케이션** → 애플리케이션 추가하기 →
-  생성된 앱 → **앱 설정 > 앱 키** → **JavaScript 키** 복사
+  생성된 앱 → **플랫폼 키 > JavaScript 키** 복사
 
-- [ ] **b) Web 플랫폼에 도메인 등록**
-  **앱 설정 > 플랫폼** → **Web 플랫폼 등록** → 사이트 도메인에 아래 origin 입력 후 저장
+- [ ] **b) JavaScript SDK 도메인 등록**
+  **플랫폼 키 > JavaScript 키** → **JavaScript SDK 도메인** 에 아래 origin 입력 후 저장
 
   ```
   https://ssangyongttt.github.io
   ```
 
-  > 경로(`/ar-traveling/`)는 빼고 **origin만** 넣어야 합니다.
+  > ⚠️ **"제품 링크 관리 > 웹 도메인"이 아닙니다.** 그쪽은 카카오톡 공유·메시지의 링크 이동용이라
+  > 여기에 등록해도 로드뷰는 동작하지 않습니다. 반드시 **JavaScript SDK 도메인** 에 등록하세요.
+  >
+  > 경로(`/ar-traveling/`)는 빼고 **origin만** 넣습니다.
   > 이 단계를 건너뛰면 SDK 로드 시 401 에러가 발생합니다.
 
 - [ ] **c) 카카오맵 사용 설정 ON**
   **제품 설정 > 카카오맵** → **사용 설정**을 **ON**으로 변경
+  (콘솔 버전에 따라 **앱 설정 > 제품 설정** 하위에 있을 수 있습니다)
 
 ## 사용법
 
@@ -70,7 +74,7 @@ python3 -m http.server 8000
 # http://localhost:8000 접속
 ```
 
-이때는 카카오 Web 플랫폼에 `http://localhost:8000`도 추가로 등록해야 합니다.
+이때는 **JavaScript SDK 도메인** 에 `http://localhost:8000`도 추가로 등록해야 합니다.
 
 ## 참고: GitHub Pages 수동 설정
 
